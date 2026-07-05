@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Familjens Matsedel</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green: #3d7a3e;
+      --green-light: #e8f5e9;
+      --green-mid: #81c784;
+      --orange: #e65100;
+      --orange-light: #fff3e0;
+      --text: #1a1a1a;
+      --text-light: #666;
+      --bg: #f7f7f5;
+      --card: #ffffff;
+      --border: #e0e0e0;
+      --radius: 12px;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08);
+      --shadow-lg: 0 4px 20px rgba(0,0,0,0.12);
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      background: var(--green);
+      color: white;
+      padding: 16px 20px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: -0.3px;
+    }
+    header h1 span { opacity: 0.8; font-weight: 400; }
+
+    /* ===== TABS ===== */
+    .tabs {
+      display: flex;
+      gap: 4px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 8px;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .tab-btn.active {
+      background: var(--bg);
+      color: var(--green);
+    }
+    .tab-btn:hover:not(.active) { color: white; background: rgba(255,255,255,0.1); }
+
+    /* ===== TAB CONTENT ===== */
+    .tab-panel { display: none; padding: 16px; max-width: 800px; margin: 0 auto; }
+    .tab-panel.active { display: block; }
+
+    /* ===== MATSEDEL ===== */
+    .week-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .week-btn {
+      flex: 1;
+      padding: 10px;
+      border: 2px solid var(--border);
+      background: white;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--text-light);
+    }
+    .week-btn.active {
+      border-color: var(--green);
+      background: var(--green-light);
+      color: var(--green);
+    }
+    .day-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+      border-left: 4px solid var(--border);
+      transition: border-color 0.2s;
+    }
+    .day-card.has-recipe { border-left-color: var(--green); }
+    .day-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .day-name { font-weight: 700; font-size: 15px; }
+    .day-date { font-size: 12px; color: var(--text-light); }
+    .day-recipe {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .day-recipe-name {
+      font-size: 14px;
+      color: var(--text);
+      flex: 1;
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-color: transparent;
+      transition: text-decoration-color 0.2s;
+    }
+    .day-recipe-name:hover { text-decoration-color: var(--green); }
+    .day-recipe-meta { font-size: 12px; color: var(--text-light); }
+    .day-empty { font-size: 13px; color: var(--text-light); font-style: italic; }
+    .btn-small {
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--text-light);
+    }
+    .btn-outline:hover { border-color: var(--green); color: var(--green); }
+    .btn-green { background: var(--green); color: white; }
+    .btn-green:hover { background: #2e5e2f; }
+    .btn-orange { background: var(--orange); color: white; }
+    .btn-orange:hover { background: #bf360c; }
+    .btn-red { background: #c62828; color: white; }
+    .btn-red:hover { background: #8e0000; }
+
+    .week-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-full {
+      flex: 1;
+      min-width: 150px;
+      padding: 12px;
+      border-radius: var(--radius);
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    /* ===== RECEPTBANK ===== */
+    .search-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .search-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus { border-color: var(--green); }
+    .filters {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .filter-chip {
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1.5px solid var(--border);
+      background: white;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--text-light);
+    }
+    .filter-chip.active { background: var(--green); border-color: var(--green); color: white; }
+    .filter-chip:hover:not(.active) { border-color: var(--green); color: var(--green); }
+    .recipe-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .recipe-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1.5px solid transparent;
+    }
+    .recipe-card:hover { box-shadow: var(--shadow-lg); border-color: var(--green-mid); transform: translateY(-1px); }
+    .recipe-card-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; line-height: 1.3; }
+    .recipe-card-meta { font-size: 12px; color: var(--text-light); margin-bottom: 8px; }
+    .recipe-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: var(--green-light);
+      color: var(--green);
+      font-weight: 600;
+    }
+    .blog-badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .blog-portionundertian { background: #e3f2fd; color: #1565c0; }
+    .blog-javligtgott { background: #fce4ec; color: #880e4f; }
+    .blog-zeinasmat { background: #fff8e1; color: #e65100; }
+    .blog-tuvessonskan { background: #f3e5f5; color: #6a1b9a; }
+
+    /* ===== RECIPE MODAL ===== */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .modal-backdrop.open { display: flex; align-items: flex-start; justify-content: center; }
+    .modal {
+      background: white;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 560px;
+      margin-top: 20px;
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+    .modal-header {
+      background: var(--green);
+      color: white;
+      padding: 20px;
+    }
+    .modal-header h2 { font-size: 20px; margin-bottom: 4px; }
+    .modal-meta { font-size: 13px; opacity: 0.85; }
+    .modal-body { padding: 20px; }
+    .modal-close {
+      float: right;
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 12px;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.3); }
+    .portions-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      background: var(--green-light);
+      padding: 12px;
+      border-radius: 10px;
+    }
+    .portions-label { font-weight: 600; font-size: 14px; }
+    .portions-ctrl {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .portions-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      border: none;
+      background: var(--green);
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      line-height: 1;
+    }
+    .portions-num { font-size: 18px; font-weight: 700; min-width: 24px; text-align: center; }
+    .section-title { font-size: 14px; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+    .ingredient-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .ingredient-row:last-child { border-bottom: none; }
+    .ingredient-amount { color: var(--text-light); min-width: 100px; }
+    .ingredient-name { flex: 1; }
+    .instructions-text {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text);
+      margin-top: 8px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      background: #fafafa;
+    }
+    .btn-full-modal {
+      flex: 1;
+      min-width: 120px;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    /* ===== INKÖPSLISTA ===== */
+    .shopping-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .shopping-header h2 { font-size: 18px; font-weight: 700; }
+    .shopping-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .shopping-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--card);
+      border-radius: 10px;
+      margin-bottom: 6px;
+      box-shadow: var(--shadow);
+      transition: opacity 0.2s;
+    }
+    .shopping-item.checked { opacity: 0.45; }
+    .shopping-item.checked .item-text { text-decoration: line-through; color: var(--text-light); }
+    .item-cb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--green);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .item-cb.checked { background: var(--green); }
+    .item-cb.checked::after { content: '✓'; color: white; font-size: 12px; font-weight: bold; }
+    .item-text { flex: 1; font-size: 14px; }
+    .item-source { font-size: 11px; color: var(--text-light); }
+    .item-delete {
+      background: none;
+      border: none;
+      color: #ccc;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color 0.15s;
+    }
+    .item-delete:hover { color: #c62828; }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-light);
+    }
+    .empty-state p:first-child { font-size: 36px; margin-bottom: 8px; }
+
+    /* ===== RECIPE PICKER MODAL ===== */
+    .picker-list { max-height: 60vh; overflow-y: auto; }
+    .picker-item {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .picker-item:hover { background: var(--green-light); }
+    .picker-item-title { font-weight: 600; font-size: 14px; }
+    .picker-item-meta { font-size: 12px; color: var(--text-light); }
+    .picker-search {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: white;
+    }
+
+    /* ===== TOAST ===== */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #333;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 999;
+      transition: transform 0.3s ease;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ===== MOBILE ===== */
+    @media (max-width: 480px) {
+      .recipe-grid { grid-template-columns: 1fr 1fr; }
+      .tab-btn { font-size: 12px; padding: 8px 4px; }
+    }
+    @media (max-width: 380px) {
+      .recipe-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🍽 Familjens Matsedel</h1>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('matsedel')">📅 Matsedel</button>
+    <button class="tab-btn" onclick="switchTab('receptbank')">📖 Receptbank</button>
+    <button class="tab-btn" onclick="switchTab('inkopslista')">🛒 Inköpslista</button>
+  </div>
+</header>
+
+<!-- ===== MATSEDEL ===== -->
+<div id="tab-matsedel" class="tab-panel active">
+  <div class="week-toggle">
+    <button class="week-btn active" id="btn-this-week" onclick="showWeek('this')">Denna vecka</button>
+    <button class="week-btn" id="btn-next-week" onclick="showWeek('next')">Nästa vecka</button>
+  </div>
+  <div id="days-container"></div>
+  <div class="week-actions">
+    <button class="btn-full btn-green" onclick="addAllWeekToList()">🛒 Lägg hela veckans recept i inköpslistan</button>
+    <button class="btn-full btn-outline" onclick="clearWeek()" style="background:white;border:1.5px solid #e0e0e0;color:#666;border-radius:12px;">🗑 Rensa vecka</button>
+  </div>
+</div>
+
+<!-- ===== RECEPTBANK ===== -->
+<div id="tab-receptbank" class="tab-panel">
+  <div class="search-bar">
+    <input class="search-input" id="recipe-search" placeholder="🔍 Sök recept..." oninput="renderRecipes()" />
+  </div>
+  <div class="filters" id="filter-blogs">
+    <span style="font-size:12px;font-weight:700;color:var(--text-light);align-self:center;">Blogg:</span>
+    <div class="filter-chip active" data-blog="" onclick="setBlogFilter(this, '')">Alla</div>
+    <div class="filter-chip" data-blog="portionundertian" onclick="setBlogFilter(this, 'portionundertian')">Portion under tian</div>
+    <div class="filter-chip" data-blog="javligtgott" onclick="setBlogFilter(this, 'javligtgott')">Jävligt Gott</div>
+    <div class="filter-chip" data-blog="zeinasmat" onclick="setBlogFilter(this, 'zeinasmat')">Zeinas Mat</div>
+    <div class="filter-chip" data-blog="tuvessonskan" onclick="setBlogFilter(this, 'tuvessonskan')">Tuvessonskan</div>
+  </div>
+  <div class="filters" id="filter-cats">
+    <span style="font-size:12px;font-weight:700;color:var(--text-light);align-self:center;">Kategori:</span>
+    <div class="filter-chip active" data-cat="" onclick="setCatFilter(this, '')">Alla</div>
+  </div>
+  <div id="recipe-count" style="font-size:13px;color:var(--text-light);margin-bottom:12px;"></div>
+  <div class="recipe-grid" id="recipe-grid"></div>
+</div>
+
+<!-- ===== INKÖPSLISTA ===== -->
+<div id="tab-inkopslista" class="tab-panel">
+  <div class="shopping-header">
+    <h2>🛒 Inköpslista</h2>
+    <div class="shopping-actions">
+      <button class="btn-small btn-outline" onclick="shareList()">🔗 Dela</button>
+      <button class="btn-small btn-outline" onclick="clearChecked()">✅ Ta bort ibockade</button>
+      <button class="btn-small btn-red" onclick="clearAll()">🗑 Rensa allt</button>
+    </div>
+  </div>
+  <div id="shopping-list"></div>
+</div>
+
+<!-- ===== RECIPE MODAL ===== -->
+<div class="modal-backdrop" id="recipe-modal" onclick="closeRecipeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <button class="modal-close" onclick="closeRecipeModalBtn()">✕</button>
+      <h2 id="modal-title"></h2>
+      <div class="modal-meta" id="modal-meta"></div>
+    </div>
+    <div class="modal-body">
+      <div class="portions-row">
+        <span class="portions-label">Portioner:</span>
+        <div class="portions-ctrl">
+          <button class="portions-btn" onclick="changePortions(-1)">−</button>
+          <span class="portions-num" id="modal-portions">4</span>
+          <button class="portions-btn" onclick="changePortions(1)">+</button>
+        </div>
+      </div>
+      <div class="section-title">Ingredienser</div>
+      <div id="modal-ingredients"></div>
+      <div class="section-title" style="margin-top:18px;">Tillagning</div>
+      <div class="instructions-text" id="modal-instructions"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-full-modal btn-green" onclick="addToShoppingList()">🛒 Lägg till i inköpslistan</button>
+      <button class="btn-full-modal btn-outline" id="modal-add-to-day-btn" onclick="openDayPicker()" style="background:white;border:1.5px solid var(--border);color:var(--text-light);">📅 Lägg till i matsedeln</button>
+      <a id="modal-blog-link" href="#" target="_blank" class="btn-full-modal" style="text-align:center;text-decoration:none;background:#f0f0f0;color:#555;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">🔗 Öppna blogg</a>
+    </div>
+  </div>
+</div>
+
+<!-- ===== RECIPE PICKER MODAL (for adding to day) ===== -->
+<div class="modal-backdrop" id="picker-modal" onclick="closePickerModal(event)">
+  <div class="modal">
+    <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <h2 style="font-size:17px;" id="picker-title">Välj recept</h2>
+      <button class="modal-close" onclick="document.getElementById('picker-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="picker-search">
+      <input class="search-input" id="picker-search-input" placeholder="🔍 Sök..." oninput="renderPickerList()" style="width:100%;" />
+    </div>
+    <div class="picker-list" id="picker-list"></div>
+  </div>
+</div>
+
+<!-- ===== DAY PICKER MODAL ===== -->
+<div class="modal-backdrop" id="day-picker-modal" onclick="closeDayPickerModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <button class="modal-close" onclick="document.getElementById('day-picker-modal').classList.remove('open')">✕</button>
+      <h2 style="font-size:17px;">Välj dag</h2>
+    </div>
+    <div style="padding:16px;">
+      <div id="day-picker-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TOAST ===== -->
+<div class="toast" id="toast"></div>
+
+<!-- ===== SCRIPTS ===== -->
+<script src="recipes.js"></script>
+<script>
+// ============================================================
+// FIREBASE CONFIG — replace with your own values from Firebase console
+// ============================================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBrmV2hlyGSzSpYOCg7w-71kBvnARLT8gg",
+  authDomain: "maten-60cc2.firebaseapp.com",
+  databaseURL: "https://maten-60cc2-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "maten-60cc2",
+  storageBucket: "maten-60cc2.firebasestorage.app",
+  messagingSenderId: "91093032954",
+  appId: "1:91093032954:web:7bccd9a9076854faec8e43"
+};
+// ============================================================
+
+// ---- Init Firebase ----
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+
+// ---- State ----
+let currentWeek = 'this';
+let currentRecipeId = null;
+let currentPortions = 4;
+let pickerMode = null; // 'day' or null
+let pickerTargetDay = null;
+let blogFilter = '';
+let catFilter = '';
+let mealPlan = { this: {}, next: {} };
+let shoppingItems = [];
+let customPortions = {};
+
+const DAYS_SV = ['Måndag','Tisdag','Onsdag','Torsdag','Fredag','Lördag','Söndag'];
+const DAYS_EN = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+
+// ---- Week date helpers ----
+function getWeekStart(offset = 0) {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1) + offset * 7);
+  monday.setHours(0,0,0,0);
+  return monday;
+}
+function getDayDate(weekOffset, dayIndex) {
+  const start = getWeekStart(weekOffset);
+  const d = new Date(start);
+  d.setDate(start.getDate() + dayIndex);
+  return d;
+}
+function formatDate(date) {
+  return date.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+}
+
+// ---- Firebase listeners ----
+function initFirebase() {
+  db.ref('mealPlan').on('value', snap => {
+    mealPlan = snap.val() || { this: {}, next: {} };
+    if (!mealPlan.this) mealPlan.this = {};
+    if (!mealPlan.next) mealPlan.next = {};
+    renderDays();
+  });
+  db.ref('shoppingItems').on('value', snap => {
+    shoppingItems = snap.val() ? Object.values(snap.val()) : [];
+    renderShoppingList();
+  });
+  db.ref('customPortions').on('value', snap => {
+    customPortions = snap.val() || {};
+  });
+  // Check week rollover
+  checkWeekRollover();
+}
+
+function checkWeekRollover() {
+  db.ref('lastWeekKey').once('value', snap => {
+    const stored = snap.val();
+    const currentKey = getWeekStart(0).toISOString().slice(0,10);
+    if (stored && stored !== currentKey) {
+      // Week has changed — roll over next week → this week
+      db.ref('mealPlan/next').once('value', nextSnap => {
+        const nextPlan = nextSnap.val() || {};
+        db.ref('mealPlan').update({ this: nextPlan, next: {} });
+      });
+    }
+    db.ref('lastWeekKey').set(currentKey);
+  });
+}
+
+// ---- Tab switching ----
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ---- MATSEDEL ----
+function showWeek(w) {
+  currentWeek = w;
+  document.getElementById('btn-this-week').classList.toggle('active', w === 'this');
+  document.getElementById('btn-next-week').classList.toggle('active', w === 'next');
+  renderDays();
+}
+
+function renderDays() {
+  const container = document.getElementById('days-container');
+  const weekOffset = currentWeek === 'this' ? 0 : 1;
+  const plan = mealPlan[currentWeek] || {};
+  container.innerHTML = DAYS_SV.map((day, i) => {
+    const key = DAYS_EN[i];
+    const recipeId = plan[key];
+    const recipe = recipeId ? RECIPES.find(r => r.id === recipeId) : null;
+    const date = getDayDate(weekOffset, i);
+    const isToday = weekOffset === 0 && new Date().toDateString() === date.toDateString();
+    return `
+      <div class="day-card ${recipe ? 'has-recipe' : ''}" ${isToday ? 'style="border-left-color:#f57f17;"' : ''}>
+        <div class="day-header">
+          <span class="day-name">${day}${isToday ? ' <span style="font-size:11px;background:#fff8e1;color:#e65100;padding:2px 6px;border-radius:8px;font-weight:700;">idag</span>' : ''}</span>
+          <span class="day-date">${formatDate(date)}</span>
+        </div>
+        <div class="day-recipe">
+          ${recipe
+            ? `<span class="day-recipe-name" onclick="openRecipeModal(${recipe.id})">${recipe.title}</span>
+               <span class="day-recipe-meta">${customPortions[recipe.id] || recipe.servings} port.</span>
+               <button class="btn-small btn-outline" onclick="openRecipePickerForDay('${key}')">✏️</button>
+               <button class="btn-small btn-outline" onclick="removeDayRecipe('${key}')" style="color:#c62828;">✕</button>`
+            : `<span class="day-empty">Inget recept planerat</span>
+               <button class="btn-small btn-green" onclick="openRecipePickerForDay('${key}')">+ Välj</button>`
+          }
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openRecipePickerForDay(dayKey) {
+  pickerMode = 'day';
+  pickerTargetDay = dayKey;
+  document.getElementById('picker-title').textContent = 'Välj recept för ' + DAYS_SV[DAYS_EN.indexOf(dayKey)];
+  document.getElementById('picker-search-input').value = '';
+  renderPickerList();
+  document.getElementById('picker-modal').classList.add('open');
+}
+
+function renderPickerList() {
+  const q = document.getElementById('picker-search-input').value.toLowerCase();
+  const filtered = q ? RECIPES.filter(r => r.title.toLowerCase().includes(q) || r.categories.some(c => c.includes(q))) : RECIPES;
+  document.getElementById('picker-list').innerHTML = filtered.map(r => `
+    <div class="picker-item" onclick="selectRecipeForDay(${r.id})">
+      <div class="picker-item-title">${r.title}</div>
+      <div class="picker-item-meta">${r.blogName} · ${r.time} min · ${r.servings} port.</div>
+    </div>`).join('');
+}
+
+function selectRecipeForDay(recipeId) {
+  if (pickerMode === 'day' && pickerTargetDay) {
+    db.ref(`mealPlan/${currentWeek}/${pickerTargetDay}`).set(recipeId);
+  }
+  document.getElementById('picker-modal').classList.remove('open');
+}
+
+function removeDayRecipe(dayKey) {
+  db.ref(`mealPlan/${currentWeek}/${dayKey}`).remove();
+}
+
+function clearWeek() {
+  if (confirm(`Rensa hela ${currentWeek === 'this' ? 'denna' : 'nästa'} veckas matsedel?`)) {
+    db.ref(`mealPlan/${currentWeek}`).remove();
+  }
+}
+
+function addAllWeekToList() {
+  const plan = mealPlan[currentWeek] || {};
+  const recipeIds = [...new Set(Object.values(plan).filter(Boolean))];
+  if (recipeIds.length === 0) { showToast('Ingen matsedel att lägga till'); return; }
+  let added = 0;
+  recipeIds.forEach(id => {
+    const recipe = RECIPES.find(r => r.id === id);
+    if (recipe) { addIngredientsToList(recipe, false); added++; }
+  });
+  showToast(`${added} recept lade till i inköpslistan`);
+}
+
+function closePickerModal(e) { if (e.target.id === 'picker-modal') e.target.classList.remove('open'); }
+function closeDayPickerModal(e) { if (e.target.id === 'day-picker-modal') e.target.classList.remove('open'); }
+
+// ---- RECEPTBANK ----
+function getAllCategories() {
+  const cats = new Set();
+  RECIPES.forEach(r => r.categories.forEach(c => cats.add(c)));
+  return [...cats].sort();
+}
+
+function initFilters() {
+  const catsEl = document.getElementById('filter-cats');
+  const allCats = getAllCategories();
+  allCats.forEach(cat => {
+    const chip = document.createElement('div');
+    chip.className = 'filter-chip';
+    chip.dataset.cat = cat;
+    chip.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+    chip.onclick = () => setCatFilter(chip, cat);
+    catsEl.appendChild(chip);
+  });
+}
+
+function setBlogFilter(el, val) {
+  blogFilter = val;
+  document.querySelectorAll('#filter-blogs .filter-chip').forEach(c => c.classList.toggle('active', c.dataset.blog === val));
+  renderRecipes();
+}
+function setCatFilter(el, val) {
+  catFilter = val;
+  document.querySelectorAll('#filter-cats .filter-chip').forEach(c => c.classList.toggle('active', c.dataset.cat === val));
+  renderRecipes();
+}
+
+function renderRecipes() {
+  const q = (document.getElementById('recipe-search')?.value || '').toLowerCase();
+  let filtered = RECIPES;
+  if (blogFilter) filtered = filtered.filter(r => r.blog === blogFilter);
+  if (catFilter) filtered = filtered.filter(r => r.categories.includes(catFilter));
+  if (q) filtered = filtered.filter(r => r.title.toLowerCase().includes(q) || r.categories.some(c => c.includes(q)));
+  document.getElementById('recipe-count').textContent = `${filtered.length} recept`;
+  document.getElementById('recipe-grid').innerHTML = filtered.map(r => `
+    <div class="recipe-card" onclick="openRecipeModal(${r.id})">
+      <div style="margin-bottom:6px;"><span class="blog-badge blog-${r.blog}">${r.blogName}</span></div>
+      <div class="recipe-card-title">${r.title}</div>
+      <div class="recipe-card-meta">⏱ ${r.time} min · 👥 ${customPortions[r.id] || r.servings} port.</div>
+      <div class="recipe-card-tags">${r.categories.slice(0,3).map(c => `<span class="tag">${c}</span>`).join('')}</div>
+    </div>`).join('');
+}
+
+// ---- RECIPE MODAL ----
+function openRecipeModal(id) {
+  currentRecipeId = id;
+  const recipe = RECIPES.find(r => r.id === id);
+  if (!recipe) return;
+  currentPortions = customPortions[id] || recipe.servings;
+  document.getElementById('modal-title').textContent = recipe.title;
+  document.getElementById('modal-meta').textContent = `${recipe.blogName} · ⏱ ${recipe.time} min · ${recipe.categories.join(', ')}`;
+  document.getElementById('modal-blog-link').href = recipe.blogUrl;
+  document.getElementById('modal-instructions').textContent = recipe.instructions;
+  renderModalIngredients(recipe);
+  document.getElementById('recipe-modal').classList.add('open');
+}
+
+function renderModalIngredients(recipe) {
+  const base = recipe.servings;
+  const factor = currentPortions / base;
+  document.getElementById('modal-portions').textContent = currentPortions;
+  document.getElementById('modal-ingredients').innerHTML = recipe.ingredients.map(ing => {
+    const scaled = ing.amount * factor;
+    const formatted = scaled === Math.floor(scaled) ? scaled : scaled.toFixed(1).replace(/\.0$/, '');
+    return `<div class="ingredient-row">
+      <span class="ingredient-amount">${formatted} ${ing.unit}</span>
+      <span class="ingredient-name">${ing.name}</span>
+    </div>`;
+  }).join('');
+}
+
+function changePortions(delta) {
+  const recipe = RECIPES.find(r => r.id === currentRecipeId);
+  if (!recipe) return;
+  currentPortions = Math.max(1, currentPortions + delta);
+  // Save to Firebase
+  db.ref(`customPortions/${currentRecipeId}`).set(currentPortions);
+  renderModalIngredients(recipe);
+}
+
+function closeRecipeModal(e) { if (e.target.id === 'recipe-modal') closeRecipeModalBtn(); }
+function closeRecipeModalBtn() { document.getElementById('recipe-modal').classList.remove('open'); }
+
+function openDayPicker() {
+  closeRecipeModalBtn();
+  const weekOffset = currentWeek === 'this' ? 0 : 1;
+  const plan = mealPlan[currentWeek] || {};
+  document.getElementById('day-picker-list').innerHTML = DAYS_SV.map((day, i) => {
+    const key = DAYS_EN[i];
+    const date = getDayDate(weekOffset, i);
+    const hasRecipe = plan[key];
+    return `<div class="picker-item" onclick="addToDayFromModal('${key}')">
+      <div class="picker-item-title">${day}</div>
+      <div class="picker-item-meta">${formatDate(date)}${hasRecipe ? ' · ⚠️ Ersätter befintligt recept' : ''}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('day-picker-modal').classList.add('open');
+}
+
+function addToDayFromModal(dayKey) {
+  db.ref(`mealPlan/${currentWeek}/${dayKey}`).set(currentRecipeId);
+  document.getElementById('day-picker-modal').classList.remove('open');
+  showToast('Recept tillagt i matsedeln');
+}
+
+// ---- INKÖPSLISTA ----
+function addToShoppingList() {
+  const recipe = RECIPES.find(r => r.id === currentRecipeId);
+  if (!recipe) return;
+  addIngredientsToList(recipe, true);
+  closeRecipeModalBtn();
+}
+
+function addIngredientsToList(recipe, showToastMsg = true) {
+  const base = recipe.servings;
+  const portions = customPortions[recipe.id] || base;
+  const factor = portions / base;
+  recipe.ingredients.forEach(ing => {
+    const scaled = ing.amount * factor;
+    const fmt = scaled === Math.floor(scaled) ? scaled : parseFloat(scaled.toFixed(1));
+    const item = {
+      id: Date.now() + Math.random(),
+      text: `${fmt} ${ing.unit} ${ing.name}`,
+      amount: fmt,
+      unit: ing.unit,
+      name: ing.name,
+      source: recipe.title,
+      checked: false,
+      addedAt: Date.now()
+    };
+    const ref = db.ref('shoppingItems').push();
+    ref.set({ ...item, id: ref.key });
+  });
+  if (showToastMsg) showToast(`${recipe.ingredients.length} ingredienser tillagda`);
+}
+
+function renderShoppingList() {
+  const el = document.getElementById('shopping-list');
+  if (!shoppingItems.length) {
+    el.innerHTML = `<div class="empty-state"><p>🛒</p><p>Inköpslistan är tom.</p><p style="font-size:12px;margin-top:4px;">Gå till ett recept och tryck "Lägg till i inköpslistan".</p></div>`;
+    return;
+  }
+  const unchecked = shoppingItems.filter(i => !i.checked);
+  const checked = shoppingItems.filter(i => i.checked);
+  const renderItem = i => `
+    <div class="shopping-item ${i.checked ? 'checked' : ''}" id="si-${i.id}">
+      <div class="item-cb ${i.checked ? 'checked' : ''}" onclick="toggleItem('${i.id}')"></div>
+      <div class="item-text">
+        ${i.text}
+        <div class="item-source">från: ${i.source}</div>
+      </div>
+      <button class="item-delete" onclick="deleteItem('${i.id}')">×</button>
+    </div>`;
+  el.innerHTML = unchecked.map(renderItem).join('') +
+    (checked.length ? `<div style="font-size:12px;color:var(--text-light);margin:12px 0 6px;font-weight:700;">IBOCKADE (${checked.length})</div>` + checked.map(renderItem).join('') : '');
+}
+
+function toggleItem(id) {
+  const item = shoppingItems.find(i => i.id === id);
+  if (!item) return;
+  db.ref(`shoppingItems/${id}/checked`).set(!item.checked);
+}
+
+function deleteItem(id) {
+  db.ref(`shoppingItems/${id}`).remove();
+}
+
+function clearChecked() {
+  const checked = shoppingItems.filter(i => i.checked);
+  if (!checked.length) { showToast('Inga ibockade varor'); return; }
+  const updates = {};
+  checked.forEach(i => updates[i.id] = null);
+  db.ref('shoppingItems').update(updates);
+}
+
+function clearAll() {
+  if (!shoppingItems.length) return;
+  if (confirm('Rensa hela inköpslistan?')) db.ref('shoppingItems').remove();
+}
+
+function shareList() {
+  if (!shoppingItems.length) { showToast('Inköpslistan är tom'); return; }
+  const encoded = encodeURIComponent(shoppingItems.filter(i => !i.checked).map(i => i.text).join('\n'));
+  const url = `${window.location.href.split('?')[0]}?list=${encoded}`;
+  if (navigator.share) {
+    navigator.share({ title: 'Inköpslista', text: 'Familjens inköpslista', url });
+  } else {
+    navigator.clipboard.writeText(url).then(() => showToast('Länk kopierad till urklipp!'));
+  }
+}
+
+// Check for shared list in URL
+function checkSharedList() {
+  const params = new URLSearchParams(window.location.search);
+  const list = params.get('list');
+  if (list) {
+    const items = decodeURIComponent(list).split('\n').filter(Boolean);
+    if (items.length && confirm(`${items.length} delade varor hittades. Lägg till i inköpslistan?`)) {
+      items.forEach(text => {
+        const ref = db.ref('shoppingItems').push();
+        ref.set({ id: ref.key, text, source: 'Delad lista', checked: false, addedAt: Date.now() });
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }
+}
+
+// ---- TOAST ----
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ---- INIT ----
+initFilters();
+renderRecipes();
+initFirebase();
+checkSharedList();
+</script>
+</body>
+</html>
